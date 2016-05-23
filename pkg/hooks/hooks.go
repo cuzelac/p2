@@ -74,6 +74,7 @@ func Hooks(dirpath string, logger *logging.Logger) *HookDir {
 	return &HookDir{dirpath, logger}
 }
 
+// runDirectory executes all executable files in a given directory path.
 func runDirectory(dirpath string, environment []string, logger logging.Logger) error {
 	entries, err := ioutil.ReadDir(dirpath)
 	if os.IsNotExist(err) {
@@ -94,27 +95,31 @@ func runDirectory(dirpath string, environment []string, logger logging.Logger) e
 		if f.IsDir() {
 			continue
 		}
-		logger.WithField("path", fullpath).Infof("Executing hook %s", f.Name())
-		cmd := exec.Command(fullpath)
-		hookOut := &bytes.Buffer{}
-		cmd.Stdout = hookOut
-		cmd.Stderr = hookOut
-		cmd.Env = environment
-		err := cmd.Run()
-		if err != nil {
-			logger.WithErrorAndFields(err, logrus.Fields{
-				"path":   fullpath,
-				"output": hookOut.String(),
-			}).Warnf("Could not execute hook %s", f.Name())
-		} else {
-			logger.WithFields(logrus.Fields{
-				"path":   fullpath,
-				"output": hookOut.String(),
-			}).Debugln("Executed hook")
-		}
+		RunHook(fullpath, f.Name(), environment, logger)
 	}
 
 	return nil
+}
+
+func RunHook(fullpath string, hookName string, environment []string, logger logging.Logger) {
+	logger.WithField("path", fullpath).Infof("Executing hook %s", hookName)
+	cmd := exec.Command(fullpath)
+	hookOut := &bytes.Buffer{}
+	cmd.Stdout = hookOut
+	cmd.Stderr = hookOut
+	cmd.Env = environment
+	err := cmd.Run()
+	if err != nil {
+		logger.WithErrorAndFields(err, logrus.Fields{
+			"path":   fullpath,
+			"output": hookOut.String(),
+		}).Warnf("Could not execute hook %s", hookName)
+	} else {
+		logger.WithFields(logrus.Fields{
+			"path":   fullpath,
+			"output": hookOut.String(),
+		}).Debugln("Executed hook")
+	}
 }
 
 func (h *HookDir) runHooks(dirpath string, hType HookType, pod Pod, podManifest pods.Manifest, logger logging.Logger) error {
